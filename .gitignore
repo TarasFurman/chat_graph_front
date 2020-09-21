@@ -1,0 +1,10 @@
+node_modules/
+dist/
+npm-debug.log
+yarn-error.log
+.vscode
+.prettierrc
+psd
+thumb
+sketch
+package-lock.json
