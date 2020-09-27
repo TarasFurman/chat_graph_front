@@ -28,7 +28,6 @@ const actions = {
       if (resp.status === 200) {
         commit('setUserChatRooms', resp.data);
       } else {
-        // TODO: change when back is gonna change
         commit('setUserChatRooms', []);
       }
     });
@@ -56,7 +55,12 @@ const actions = {
     service
       .appendUserToRoom(params.currentChatRoomId, { id: params.selectedUserId })
       .then(resp => {
-        commit('appendUserToRoom', resp.data);
+        service.getAllUsersConnections().then(userConnections => {
+          commit('appendUserAndGetConnections', {
+            appendUser: resp.data,
+            allUsersConnections: userConnections.data
+          });
+        });
       });
   },
 
@@ -93,21 +97,26 @@ const mutations = {
     (state.currentChatRoom = chatRoom),
 
   setAllUsers: (state, allUsers) => {
-    // state.allUsersNotInChat = allUsers.filter(
-    //   item => item.id !== state.user.user_id
-    // );
     state.allUsers = allUsers;
   },
-  appendUserToRoom: (state, allUsersinChat) =>
-    (state.usersInChat = allUsersinChat),
 
   setUsersInChat: (state, usersInChat) => (state.usersInChat = usersInChat),
 
   setUsersNotInChat: (state, usersNotInChat) =>
     (state.allUsersNotInChat = usersNotInChat),
 
-  setAllUsersConnections: (state, allUsersConnections) =>
-    (state.allUsersConnections = allUsersConnections)
+  setAllUsersConnections: (state, allUsersConnections) => {
+    state.allUsersConnections = allUsersConnections.sort((a, b) =>
+      a.source > b.source ? 1 : b.source > a.source ? -1 : 0
+    );
+  },
+
+  appendUserAndGetConnections: (state, data) => {
+    state.usersInChat = data.appendUser;
+    state.allUsersConnections = data.allUsersConnections.sort((a, b) =>
+      a.source > b.source ? 1 : b.source > a.source ? -1 : 0
+    );
+  }
 };
 
 export default {

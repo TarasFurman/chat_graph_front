@@ -139,14 +139,12 @@ export default class ServiceAPI {
     return await this._request(`${this.server}/login/`, params, POST);
   }
 
-  // TODO: change to single user rooms
   async getAllUserChatRooms(userId) {
     return await this._request(
       `${this.apiUrl}/users/${userId}/chat_rooms`,
       null,
       GET
     );
-    // return await this._request(`${this.apiUrl}/chat_rooms`, null, GET);
   }
 
   async createChatRoom(params) {

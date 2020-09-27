@@ -18,6 +18,5 @@ export default {
   width: 70%;
   height: 100%;
   box-sizing: border-box;
-  border: 1px solid green;
 }
 </style>

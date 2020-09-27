@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div id="graph"></div>
+    <svg width="960" height="800"></svg>
   </div>
 </template>
 
@@ -13,100 +13,145 @@ export default {
   data() {
     return {
       nodes: [],
-      links: []
+      links: [],
+      node: null,
+      link: null,
+      simulation: null,
+      node_radius: 40
     };
   },
   mounted() {
     this.getAllUsers();
     this.getAllUsersConnections();
+
+    var that = this;
+    var width = 960;
+    var height = 800;
+
+    var svg = d3.select('svg');
+    var g = svg.append('g');
+    that.link = g.append('g').selectAll('.link');
+    that.node = g.append('g').selectAll('.node');
+
+    that.simulation = d3
+      .forceSimulation(this.nodes)
+      .force('center', d3.forceCenter(width / 2, height / 2)) // to the center of screen
+      .force('collide', d3.forceCollide(that.node_radius + 10)) // circle not on another cirkle
+      .force('charge', d3.forceManyBody().strength(-50)) // circles pushing another cirkle with force
+      .force(
+        'link',
+        d3
+          .forceLink(this.links)
+          .id(function(d) {
+            return d.id;
+          })
+          .distance(300)
+      );
+
+    that.restart(this.nodes, this.links);
   },
   computed: {
-    ...mapGetters(['allUsers', 'allUsersConnections'])
+    ...mapGetters(['allUsers', 'allUsersConnections', 'newMessage'])
   },
   watch: {
     allUsersConnections: {
-      deep: true,
       handler() {
         this.nodes = this.allUsers;
         this.links = this.allUsersConnections;
+        this.restart(this.nodes, this.links);
       }
     },
-    links: {
-      deep: true,
-      immediate: true,
+    newMessage: {
       handler() {
-        this.renderGraph();
+        const animateLinks = this.newMessage.usersReceive.map(item => {
+          const sourceTarget = [
+            this.newMessage.userSend.user_id,
+            item.user.id
+          ].sort();
+          return {
+            source: sourceTarget[0],
+            target: sourceTarget[1]
+          };
+        });
+        const newLinks = [...this.links];
+        for (let i = 0; i < newLinks.length; i++) {
+          for (let j = 0; j < animateLinks.length; j++) {
+            if (
+              newLinks[i].source.id === animateLinks[j].source &&
+              newLinks[i].target.id === animateLinks[j].target
+            ) {
+              newLinks[i]['animated'] = true;
+              break;
+            } else {
+              newLinks[i]['animated'] = false;
+            }
+          }
+        }
+        this.links = newLinks.sort((a, b) =>
+          a.source > b.source ? 1 : b.source > a.source ? -1 : 0
+        );
+        this.restart(this.nodes, this.links);
       }
     }
   },
   methods: {
     ...mapActions(['getAllUsers', 'getAllUsersConnections']),
-    renderGraph() {
-      d3.select('svg').remove();
-      var width = 960;
-      var height = 800;
-      var node_radius = 40;
+    restart(newNodes, newLinks) {
+      var that = this;
 
-      var svg = d3
-        .select('#graph')
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height);
+      // Apply the general update pattern to the nodes.
+      that.node = that.node.data(newNodes, function(d) {
+        return { id: d.id, username: d.username };
+      });
 
-      var simulation = d3
-        .forceSimulation()
-        .force('x', d3.forceX(width / 2)) // to the center of screen
-        .force('y', d3.forceY(height / 2))
-        .force('collide', d3.forceCollide(node_radius + 20)) // circle not on another cirkle
-        .force('charge', d3.forceManyBody().strength(-500)) //circles pushing another cirkle with force
-        .force(
-          'link',
-          d3
-            .forceLink()
-            .id(function(d) {
-              return d.id;
-            })
-            .distance(300)
-        )
-        .on('tick', ticked);
+      that.node.exit().remove();
 
-      var link = svg.selectAll('.link');
-      var node = svg.selectAll('.node');
-
-      simulation.nodes(this.nodes);
-      simulation.force('link').links(this.links);
-
-      link = link
-        .data(this.links)
-        .enter()
-        .append('line')
-        .attr('class', 'link')
-        .attr('stroke', 'black');
-
-      // link
-      //   .attr('stroke-dasharray', 10 + ' ' + 10)
-      //   .attr('stroke-dashoffset', 500)
-      //   .transition()
-      //   .duration(2000)
-      //   .ease('linear')
-      //   .attr('stroke-dashoffset', 0);
-
-      node = node
-        .data(this.nodes)
+      that.node = that.node
         .enter()
         .append('g')
-        .attr('class', 'node');
-      node.append('circle').attr('r', node_radius);
-      node
+        .attr('class', 'node')
+        .merge(that.node);
+      that.node
+        .append('circle')
+        .attr('r', that.node_radius)
+        .merge(that.node);
+      that.node
         .append('text')
         .attr('dx', -20)
         .attr('dy', 5)
-        .text(function(d) {
-          return d.username;
-        });
+        .merge(that.node)
+        .text(d => d.username);
 
-      function ticked() {
-        link
+      // Apply the general update pattern to the links.
+      that.link = that.link.data(newLinks, function(d) {
+        return { source: { id: d.source.id }, target: { id: d.target.id } };
+      });
+
+      that.link.exit().remove();
+
+      that.link = that.link
+        .enter()
+        .append('line')
+        .attr('class', 'link')
+        .attr('stroke', function(d) {
+          if (d.animated) {
+            return 'red';
+          } else {
+            return 'black';
+          }
+        })
+        .call(enter =>
+          enter
+            .transition()
+            .duration(3000)
+            .attr('stroke', 'black')
+        )
+        .merge(that.link);
+
+      // Update and restart the simulation.
+
+      that.simulation.nodes(newNodes).on('tick', function ticked() {
+        that.link
           .attr('x1', function(d) {
             return d.source.x;
           })
@@ -119,10 +164,13 @@ export default {
           .attr('y2', function(d) {
             return d.target.y;
           });
-        node.attr('transform', function(d) {
+        that.node.attr('transform', function(d) {
           return 'translate(' + d.x + ',' + d.y + ')';
         });
-      }
+      });
+      that.simulation.nodes(newNodes);
+      that.simulation.force('link').links(newLinks);
+      that.simulation.alpha(1).restart();
     }
   }
 };

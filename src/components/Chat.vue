@@ -128,7 +128,6 @@ export default {
     usersInChat: {
       deep: true,
       handler() {
-        this.getAllUsersConnections();
         this.usersInChatString = this.usersInChat
           .map(item => {
             return item.user.username;
